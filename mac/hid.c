@@ -91,7 +91,20 @@ static int pthread_barrier_wait(pthread_barrier_t *barrier)
 	}
 }
 
+
+IOHIDManagerRef HID_API_EXPORT hidManager(){
+    IOHIDManagerRef	hid_mgr = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
+    if (hid_mgr) {
+        IOHIDManagerSetDeviceMatching(hid_mgr, NULL);
+        IOHIDManagerScheduleWithRunLoop(hid_mgr, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+    }
+    return hid_mgr;
+}
+
+
 static int return_data(hid_device *dev, unsigned char *data, size_t length);
+
+//IOHIDManagerRef HID_API_EXPORT hidManager();
 
 /* Linked List of input reports received from the device. */
 struct input_report {
@@ -176,8 +189,8 @@ static void free_hid_device(hid_device *dev)
 	free(dev);
 }
 
-static	IOHIDManagerRef hid_mgr = 0x0;
-
+//static	IOHIDManagerRef hid_mgr = 0x0;
+//pthread_mutex_t hid_mgr_lock;
 
 #if 0
 static void register_error(hid_device *device, const char *op)
@@ -359,18 +372,10 @@ static int make_path(IOHIDDeviceRef device, char *buf, size_t len)
 	return res+1;
 }
 
-/* Initialize the IOHIDManager. Return 0 for success and -1 for failure. */
+/*unused-Initialize the IOHIDManager. Return 0 for success and -1 for failure. */
 static int init_hid_manager(void)
 {
-	/* Initialize all the HID Manager Objects */
-	hid_mgr = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
-	if (hid_mgr) {
-		IOHIDManagerSetDeviceMatching(hid_mgr, NULL);
-		IOHIDManagerScheduleWithRunLoop(hid_mgr, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
-		return 0;
-	}
-
-	return -1;
+    return 0;
 }
 
 /* Initialize the IOHIDManager if necessary. This is the public function, and
@@ -378,24 +383,13 @@ static int init_hid_manager(void)
    for failure. */
 int HID_API_EXPORT hid_init(void)
 {
-	if (!hid_mgr) {
-		return init_hid_manager();
-	}
-
-	/* Already initialized. */
-	return 0;
+    return 0;
 }
 
+/*unused*/
 int HID_API_EXPORT hid_exit(void)
 {
-	if (hid_mgr) {
-		/* Close the HID manager. */
-		IOHIDManagerClose(hid_mgr, kIOHIDOptionsTypeNone);
-		CFRelease(hid_mgr);
-		hid_mgr = NULL;
-	}
-
-	return 0;
+    return 0;
 }
 
 static void process_pending_events(void) {
@@ -420,9 +414,13 @@ struct hid_device_info  HID_API_EXPORT *hid_enumerate(unsigned short vendor_id, 
 	process_pending_events();
 
 	/* Get a list of the Devices */
+    IOHIDManagerRef hid_mgr = hidManager();
 	IOHIDManagerSetDeviceMatching(hid_mgr, NULL);
 	CFSetRef device_set = IOHIDManagerCopyDevices(hid_mgr);
 
+    if (device_set==NULL) {
+        return NULL;
+    }
 	/* Convert the list into a C array so we can iterate easily. */
 	num_devices = CFSetGetCount(device_set);
 	IOHIDDeviceRef *device_array = calloc(num_devices, sizeof(IOHIDDeviceRef));
@@ -695,9 +693,12 @@ hid_device * HID_API_EXPORT hid_open_path(const char *path)
 
 	/* give the IOHIDManager a chance to update itself */
 	process_pending_events();
-
+    IOHIDManagerRef hid_mgr = hidManager();
 	CFSetRef device_set = IOHIDManagerCopyDevices(hid_mgr);
-
+    if (device_set==NULL) {
+        return NULL;
+    }
+    
 	num_devices = CFSetGetCount(device_set);
 	IOHIDDeviceRef *device_array = calloc(num_devices, sizeof(IOHIDDeviceRef));
 	CFSetGetValues(device_set, (const void **) device_array);
@@ -1083,6 +1084,9 @@ int main(void)
 	IOHIDManagerOpen(mgr, kIOHIDOptionsTypeNone);
 
 	CFSetRef device_set = IOHIDManagerCopyDevices(mgr);
+    if (device_set==NULL) {
+        return 0;
+    }
 
 	CFIndex num_devices = CFSetGetCount(device_set);
 	IOHIDDeviceRef *device_array = calloc(num_devices, sizeof(IOHIDDeviceRef));
@@ -1109,4 +1113,5 @@ int main(void)
 
 	return 0;
 }
+
 #endif
